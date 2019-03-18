@@ -1,5 +1,6 @@
 ﻿using GalaSoft.MvvmLight.Ioc;
 using NbfcClient.NbfcService;
+using NLog;
 using System;
 using System.Windows.Threading;
 
@@ -8,6 +9,8 @@ namespace NbfcClient.Services
     public class FanControlClient : IDisposable, IFanControlClient
     {
         #region Private Fields
+
+        private static readonly Logger logger = LogManager.GetCurrentClassLogger();
 
         private FanControlServiceClient client;
         private FanControlInfo fanControlInfo;
@@ -41,7 +44,7 @@ namespace NbfcClient.Services
         {
         }
 
-        public FanControlClient(int updateInterval = 3000)
+        public FanControlClient(int updateInterval)
         {
             fanControlInfo = new FanControlInfo();
             timer = new DispatcherTimer();
@@ -57,7 +60,7 @@ namespace NbfcClient.Services
 
         #region Events
 
-        public event EventHandler<FanControlStatusChangedEventArgs> FanControlStatusChanged;        
+        public event EventHandler<FanControlStatusChangedEventArgs> FanControlStatusChanged;
 
         protected void OnFanControlStatusChanged(FanControlInfo info)
         {
@@ -180,8 +183,9 @@ namespace NbfcClient.Services
 
                 action(client);
             }
-            catch (Exception)
+            catch (Exception e)
             {
+                logger.Warn(e, "Attempt to call a service method failed");
                 client.Abort();
                 client = null;
             }
@@ -197,7 +201,7 @@ namespace NbfcClient.Services
 
             fanControlInfo = info;
             OnFanControlStatusChanged(info);
-        }        
+        }
 
         #endregion
     }

@@ -11,29 +11,30 @@
     <AssemblyName>nbfc</AssemblyName>
     <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
-    <TargetFrameworkProfile>
-    </TargetFrameworkProfile>
+    <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
   </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'DebugWindows|AnyCPU' ">
     <PlatformTarget>AnyCPU</PlatformTarget>
     <DebugSymbols>true</DebugSymbols>
     <DebugType>full</DebugType>
     <Optimize>false</Optimize>
-    <OutputPath>bin\Debug\</OutputPath>
+    <OutputPath>bin\DebugWindows\</OutputPath>
     <DefineConstants>DEBUG;TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <Prefer32Bit>false</Prefer32Bit>
+    <appConfig>App.Windows.config</appConfig>
   </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'ReleaseWindows|AnyCPU' ">
     <PlatformTarget>AnyCPU</PlatformTarget>
     <DebugType>pdbonly</DebugType>
     <Optimize>true</Optimize>
-    <OutputPath>bin\Release\</OutputPath>
+    <OutputPath>bin\ReleaseWindows\</OutputPath>
     <DefineConstants>TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <Prefer32Bit>false</Prefer32Bit>
+    <appConfig>App.Windows.config</appConfig>
   </PropertyGroup>
   <PropertyGroup>
     <StartupObject>NbfcCli.Program</StartupObject>
@@ -45,17 +46,24 @@
     <DebugType>pdbonly</DebugType>
     <PlatformTarget>AnyCPU</PlatformTarget>
     <ErrorReport>prompt</ErrorReport>
-    <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
     <appConfig>App.Linux.config</appConfig>
     <Prefer32Bit>false</Prefer32Bit>
   </PropertyGroup>
   <PropertyGroup>
     <ApplicationManifest>App.manifest</ApplicationManifest>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'DebugLinux|AnyCPU'">
+    <DebugSymbols>true</DebugSymbols>
+    <OutputPath>bin\DebugLinux\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <DebugType>full</DebugType>
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <ErrorReport>prompt</ErrorReport>
+    <appConfig>App.Linux.config</appConfig>
+  </PropertyGroup>
   <ItemGroup>
-    <Reference Include="clipr, Version=1.5.1.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\..\packages\clipr.1.5.1\lib\net35\clipr.dll</HintPath>
-      <Private>True</Private>
+    <Reference Include="clipr, Version=1.6.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\..\packages\clipr.1.6.0.1\lib\net35\clipr.dll</HintPath>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
@@ -68,6 +76,9 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="..\..\Common\CommonAssemblyInfo.cs">
+      <Link>Properties\CommonAssemblyInfo.cs</Link>
+    </Compile>
     <Compile Include="CommandLineOptions\ConfigVerb.cs" />
     <Compile Include="CommandLineOptions\HelpGenerator.cs" />
     <Compile Include="CommandLineOptions\SetVerb.cs" />
@@ -87,7 +98,7 @@
     <None Include="App.Linux.config">
       <SubType>Designer</SubType>
     </None>
-    <None Include="App.config">
+    <None Include="App.Windows.config">
       <SubType>Designer</SubType>
     </None>
     <None Include="App.manifest" />
@@ -128,10 +139,11 @@
     </None>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
-  <Target Name="AfterBuild" Condition="'$(Configuration)' == 'ReleaseLinux'">
-    <Copy SourceFiles="$(TargetPath);$(TargetPath).config;$(TargetDir)clipr.dll" DestinationFolder="$(ProjectDir)\..\..\Linux\bin\$(Configuration)\" ContinueOnError="true" />
+  <Target Name="AfterBuild">
+    <Copy Condition="'$(Configuration)' == 'ReleaseLinux'" SourceFiles="$(TargetPath);$(TargetPath).config;$(TargetDir)clipr.dll" DestinationFolder="$(ProjectDir)\..\..\Linux\bin\Release\" ContinueOnError="true" />
+    <Copy Condition="'$(Configuration)' == 'DebugLinux'" SourceFiles="$(TargetPath);$(TargetPath).config;$(TargetDir)clipr.dll" DestinationFolder="$(ProjectDir)\..\..\Linux\bin\Debug\" ContinueOnError="true" />
   </Target>
-  <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
+  <!-- To modify your build process, add your task inside one of the targets below and uncomment it.
        Other similar extension points exist, see Microsoft.Common.targets.
   <Target Name="BeforeBuild">
   </Target>

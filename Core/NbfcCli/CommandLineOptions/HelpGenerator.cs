@@ -3,6 +3,7 @@ using clipr.Core;
 using clipr.Triggers;
 using clipr.Usage;
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Text;
@@ -109,25 +110,32 @@ namespace NbfcCli.CommandLineOptions
 
         private void AppendVerbHelpText(StringBuilder sb, VerbAttribute attrib, char argPrefix, PropertyInfo[] verbProperties)
         {
-            string cmd = attrib.Name;
+            var namedArgAttributes = new List<NamedArgumentAttribute>();
+            var cmd = new StringBuilder(attrib.Name);
 
             foreach (PropertyInfo param in verbProperties)
             {
-                var paramAttrib = GetAttribute<PositionalArgumentAttribute>(param);
+                var positionalArg = GetAttribute<PositionalArgumentAttribute>(param);
+                var namedArg = GetAttribute<NamedArgumentAttribute>(param);
 
-                if (paramAttrib?.MetaVar != null)
+                if (positionalArg?.MetaVar != null)
                 {
-                    cmd += $" <{paramAttrib.MetaVar}>";
+                    cmd.AppendFormat(" <{0}>", positionalArg.MetaVar);
+                }
+
+                if(namedArg != null)
+                {
+                    namedArgAttributes.Add(namedArg);
                 }
             }
 
-            if (verbProperties.Length > 0)
+            if (namedArgAttributes.Count > 0)
             {
-                cmd += " [options]";
+                cmd.Append(" [options]");
             }
 
             sb.Append("  ");
-            sb.AppendFormat($"{{0,{-DescriptionDistance}}}", cmd);
+            sb.AppendFormat($"{{0,{-DescriptionDistance}}}", cmd.ToString());
 
             if (cmd.Length >= DescriptionDistance)
             {
@@ -139,14 +147,9 @@ namespace NbfcCli.CommandLineOptions
             sb.Append(attrib.Description);
             sb.AppendLine();
 
-            foreach (PropertyInfo param in verbProperties)
+            foreach (NamedArgumentAttribute arg in namedArgAttributes)
             {
-                var paramAttrib = GetAttribute<NamedArgumentAttribute>(param);
-
-                if (paramAttrib != null)
-                {
-                    AppendArgHelpText(sb, argPrefix, paramAttrib);
-                }
+                AppendArgHelpText(sb, argPrefix, arg);
             }
 
             sb.AppendLine();

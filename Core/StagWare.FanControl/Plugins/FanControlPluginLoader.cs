@@ -1,4 +1,5 @@
-﻿using System;
+﻿using NLog;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel.Composition;
 using System.ComponentModel.Composition.Hosting;
@@ -8,6 +9,8 @@ namespace StagWare.FanControl.Plugins
 {
     public class FanControlPluginLoader<T> where T : IFanControlPlugin
     {
+        private static readonly Logger logger = LogManager.GetCurrentClassLogger();
+
         T fanControlPlugin;
         string fanControlPluginId;
 
@@ -53,8 +56,8 @@ namespace StagWare.FanControl.Plugins
         private void SelectPlugin()
         {
             OperatingSystem os = Environment.OSVersion;
-            var platform = SupportedPlatforms.None;
-            var arch = SupportedCpuArchitectures.None;
+            SupportedPlatforms platform;
+            SupportedCpuArchitectures arch;
 
             switch (os.Platform)
             {
@@ -69,6 +72,10 @@ namespace StagWare.FanControl.Plugins
                 case PlatformID.MacOSX:
                     platform = SupportedPlatforms.MacOSX;
                     break;
+
+                default:
+                    platform = SupportedPlatforms.None;
+                    break;
             }
 
             switch (IntPtr.Size)
@@ -79,6 +86,10 @@ namespace StagWare.FanControl.Plugins
 
                 case 8:
                     arch = SupportedCpuArchitectures.x64;
+                    break;
+
+                default:
+                    arch = SupportedCpuArchitectures.None;
                     break;
             }
 
@@ -109,8 +120,9 @@ namespace StagWare.FanControl.Plugins
                 plugin.Initialize();
                 isPluginInitialized = plugin.IsInitialized;
             }
-            catch
+            catch (Exception e)
             {
+                logger.Warn(e, "Plugin initialization failed");
             }
 
             if (!isPluginInitialized)
@@ -119,7 +131,10 @@ namespace StagWare.FanControl.Plugins
                 {
                     plugin.Dispose();
                 }
-                catch { }
+                catch (Exception e)
+                {
+                    logger.Warn(e, "Plugin disposal failed");
+                }
             }
 
             return isPluginInitialized;

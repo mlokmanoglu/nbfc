@@ -1,4 +1,5 @@
-﻿using StagWare.FanControl.Configurations;
+﻿using NLog;
+using StagWare.FanControl.Configurations;
 using StagWare.FanControl.Plugins;
 using System;
 using System.Collections.ObjectModel;
@@ -24,20 +25,21 @@ namespace StagWare.FanControl
 
 #endif
 
-        public const int EcTimeout = 200;
-        public const int MaxLockTimeout = 500;
-        public const int DefaultPollInterval = 3000;
-        public const string PluginsFolderDefaultName = "Plugins";
-        public const int AutoFanSpeedPercentage = Fan.AutoFanSpeed;
+        public static int EcTimeout => 200;
+        public static int MaxLockTimeout => 500;
+        public static int DefaultPollInterval => 3000;
+        public static string PluginsFolderDefaultName => "Plugins";
+        public static int AutoFanSpeedPercentage => Fan.AutoFanSpeed;
 
         #endregion
 
         #region Private Fields
 
         private readonly object syncRoot = new object();
+        private static readonly Logger logger = LogManager.GetCurrentClassLogger();
 
         private Timer timer;
-        private AsyncOperation asyncOp;
+        private readonly AsyncOperation asyncOp;
 
         private readonly int pollInterval;
         private readonly int lockTimeout;
@@ -50,8 +52,8 @@ namespace StagWare.FanControl
 
         private volatile bool readOnly;
         private volatile float temperature;
-        private volatile float[] requestedSpeeds;
         private volatile FanInformation[] fanInfo;
+        private readonly float[] requestedSpeeds;
 
         #endregion
 
@@ -69,9 +71,9 @@ namespace StagWare.FanControl
         }
 
         public FanControl(FanControlConfigV2 config, ITemperatureFilter filter, string pluginsDirectory) : this(
-            config, 
-            filter, 
-            LoadPlugin<IEmbeddedController>(pluginsDirectory), 
+            config,
+            filter,
+            LoadPlugin<IEmbeddedController>(pluginsDirectory),
             LoadPlugin<ITemperatureMonitor>(pluginsDirectory))
         {
         }
@@ -148,7 +150,7 @@ namespace StagWare.FanControl
             }
 
             this.fans = fans;
-        }        
+        }
 
         private static T LoadPlugin<T>(string pluginsDirectory) where T : IFanControlPlugin
         {
@@ -324,7 +326,7 @@ namespace StagWare.FanControl
             }
             else
             {
-                throw new IndexOutOfRangeException("fanIndex");
+                throw new ArgumentOutOfRangeException("fanIndex");
             }
         }
 
@@ -357,30 +359,43 @@ namespace StagWare.FanControl
 
         private void TimerCallback(object state)
         {
-            if (Monitor.TryEnter(syncRoot, lockTimeout))
+            bool syncRootLockTaken = false;
+
+            try
             {
-                try
+                Monitor.TryEnter(syncRoot, lockTimeout, ref syncRootLockTaken);
+
+                if (!syncRootLockTaken)
                 {
-                    // We don't know which locks the plugins try to acquire internally,
-                    // therefore never try to access tempMon after calling ec.AcquireLock()
-                    double temp = this.tempMon.GetTemperature();
-                    this.temperature = (float)this.tempFilter.FilterTemperature(temp);
-
-                    if (this.ec.AcquireLock(EcTimeout))
-                    {
-                        try
-                        {
-                            UpdateEc(this.temperature);
-                        }
-                        finally
-                        {
-                            this.ec.ReleaseLock();
-                        }
-
-                        asyncOp.Post(args => OnEcUpdated(), null);
-                    }
+                    return;
                 }
-                finally
+
+                // We don't know which locks the plugins try to acquire internally,
+                // therefore never try to access tempMon after calling ec.AcquireLock()
+                double temp = this.tempMon.GetTemperature();
+                this.temperature = (float)this.tempFilter.FilterTemperature(temp);
+
+                if (this.ec.AcquireLock(EcTimeout))
+                {
+                    try
+                    {
+                        UpdateEc(this.temperature);
+                    }
+                    catch (Exception e)
+                    {
+                        logger.Error(e, "Could not update the EC");
+                    }
+                    finally
+                    {
+                        this.ec.ReleaseLock();
+                    }
+
+                    asyncOp.Post(args => OnEcUpdated(), null);
+                }
+            }
+            finally
+            {
+                if (syncRootLockTaken)
                 {
                     Monitor.Exit(syncRoot);
                 }
@@ -465,32 +480,37 @@ namespace StagWare.FanControl
 
         private void InitializeRegisterWriteConfigurations()
         {
-            if (Monitor.TryEnter(syncRoot, lockTimeout))
+            bool syncRootLockTaken = false;
+
+            try
             {
+                Monitor.TryEnter(syncRoot, lockTimeout, ref syncRootLockTaken);
+
+                if (!syncRootLockTaken)
+                {
+                    throw new TimeoutException("EC initialization failed: Could not enter monitor");
+                }
+
+                if (!this.ec.AcquireLock(EcTimeout))
+                {
+                    throw new TimeoutException("EC initialization failed: Could not acquire EC lock");
+                }
+
                 try
                 {
-                    if (!this.ec.AcquireLock(EcTimeout))
-                    {
-                        throw new TimeoutException("EC initialization failed: Could not acquire EC lock");
-                    }
-
-                    try
-                    {
-                        ApplyRegisterWriteConfigurations(true);
-                    }
-                    finally
-                    {
-                        this.ec.ReleaseLock();
-                    }
+                    ApplyRegisterWriteConfigurations(true);
                 }
                 finally
                 {
-                    Monitor.Exit(syncRoot);
+                    this.ec.ReleaseLock();
                 }
             }
-            else
+            finally
             {
-                throw new TimeoutException("EC initialization failed: Could not enter monitor");
+                if (syncRootLockTaken)
+                {
+                    Monitor.Exit(syncRoot);
+                }
             }
         }
 
@@ -534,15 +554,17 @@ namespace StagWare.FanControl
                 return;
             }
 
-            bool fanControlLockAcquired = Monitor.TryEnter(syncRoot, MaxLockTimeout * 2);
-
-            if (!fanControlLockAcquired && !force)
-            {
-                throw new TimeoutException("EC reset failed: Could not enter monitor");
-            }
+            bool syncRootLockTaken = false;
 
             try
             {
+                Monitor.TryEnter(syncRoot, MaxLockTimeout * 2, ref syncRootLockTaken);
+
+                if (!syncRootLockTaken && !force)
+                {
+                    throw new TimeoutException("EC reset failed: Could not enter monitor");
+                }
+
                 bool ecLockAcquired = this.ec.AcquireLock(EcTimeout * 2);
 
                 if (!ecLockAcquired && !force)
@@ -561,6 +583,10 @@ namespace StagWare.FanControl
                         ResetFans();
                     }
                 }
+                catch (Exception e)
+                {
+                    logger.Error(e, "EC reset failed");
+                }
                 finally
                 {
                     if (ecLockAcquired)
@@ -571,7 +597,7 @@ namespace StagWare.FanControl
             }
             finally
             {
-                if (fanControlLockAcquired)
+                if (syncRootLockTaken)
                 {
                     Monitor.Exit(syncRoot);
                 }

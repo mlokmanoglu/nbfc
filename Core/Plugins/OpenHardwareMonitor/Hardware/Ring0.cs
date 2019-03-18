@@ -294,6 +294,10 @@ namespace OpenHardwareMonitor.Hardware
                 isaBusMutex = null;
             }
         }
+        public static ulong ThreadAffinitySet(ulong mask)
+        {
+            return ThreadAffinity.Set(mask);
+        }
 
         public static string GetReport()
         {
@@ -318,7 +322,7 @@ namespace OpenHardwareMonitor.Hardware
             {
                 return isaBusMutex.WaitOne(millisecondsTimeout, false);
             }
-            catch (AbandonedMutexException) { return false; }
+            catch (AbandonedMutexException) { return true; }
             catch (InvalidOperationException) { return false; }
         }
 
